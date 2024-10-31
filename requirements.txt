@@ -1,2 +1,12 @@
 fastapi
 uvicorn
+langchain
+PyMuPDF
+openai
+fitz
+frontend
+langchain-community
+langchain_anthropic
+langchain_openai
+python-dotenv
+python-multipart

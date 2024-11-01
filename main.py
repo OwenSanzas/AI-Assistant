@@ -9,7 +9,12 @@ from identify_intent import identify_intent
 from web_search import handle_internet_search
 from langchain_openai import ChatOpenAI
 from normal_chat import default_chat
+from email_handler import handle_send_email
+from email_sender import EmailSender
+from meeting_handler import handle_schedule_meeting, meeting_handler
+from privacy_agent import PrivacyManager
 
+email_sender = EmailSender()
 app = FastAPI()
 
 app.add_middleware(
@@ -89,8 +94,17 @@ async def process_input(request: Request):
     if intent == "send_email":
         session_histories[session_id] = []
         response = await handle_send_email(user_input)
+
+        session_histories[session_id].append({"sender": "User", "text": user_input})
+        session_histories[session_id].append({
+            "sender": "AI",
+            "text": "I've prepared an email preview for you. Please review it."
+        })
+        return JSONResponse(content=response)
+
     elif intent == "schedule_meeting":
         response = await handle_schedule_meeting(user_input)
+        return JSONResponse(content=response)
     elif intent == "internet_search":
         response = await handle_internet_search(user_input, session_histories[session_id])
     else:
@@ -105,16 +119,6 @@ async def process_input(request: Request):
 
     return JSONResponse(content={"session_id": session_id, "message": response})
 
-
-
-async def handle_send_email(user_input):
-    return "Sending an email..."
-
-
-async def handle_schedule_meeting(user_input):
-    return "Scheduling a meeting..."
-
-
 @app.get("/get_history")
 async def get_history(session_id: str):
     if session_id not in session_histories:
@@ -127,6 +131,71 @@ async def get_history(session_id: str):
 
     return JSONResponse(content={"history": filtered_history})
 
+
+@app.post("/send_email")
+async def send_email(email_data: dict):
+    result = await email_sender.send_email(email_data)
+    if result["success"]:
+        return JSONResponse(content={
+            "status": "success",
+            "message": "Email sent successfully"
+        })
+    else:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "message": result["message"]
+            }
+        )
+
+
+@app.post("/confirm_meeting")
+async def confirm_meeting(meeting_data: dict):
+    required_fields = ["title", "description", "start_time", "end_time", "attendees"]
+    if not all(field in meeting_data for field in required_fields):
+        raise HTTPException(status_code=400, detail="Missing meeting information")
+
+    try:
+        meeting_result = await meeting_handler.create_meeting(meeting_data)
+
+        if not meeting_result["success"]:
+            raise HTTPException(status_code=500, detail="Failed to create meeting")
+
+        meeting_link = meeting_result["meeting_link"]
+        privacy_manager = PrivacyManager()
+
+        sender = f"{privacy_manager.get_sender_name()} <{privacy_manager.get_sender_email()}>"
+
+        for attendee in meeting_data["attendees"]:
+            email_data = {
+                "sender": sender,
+                "recipient": attendee,
+                "subject": f"Meeting Invitation: {meeting_data['title']}",
+                "content": (
+                    f"You are invited to a meeting. Here are the details:\n\n"
+                    f"Title: {meeting_data['title']}\n"
+                    f"Time: {meeting_data['start_time']} to {meeting_data['end_time']}\n"
+                    f"Description: {meeting_data['description']}\n"
+                    f"Meeting Link: {meeting_link}\n\n"
+                    f"{privacy_manager.get_signature()}"
+                )
+            }
+
+            email_result = await email_sender.send_email(email_data)
+
+            if not email_result["success"]:
+                print(f"Failed to send email to {attendee}: {email_result['message']}")
+
+        return JSONResponse(content={
+            "status": "success",
+            "meeting_link": meeting_link,
+            "message": "Meeting confirmed and invites sent."
+        })
+
+    except Exception as e:
+        print(f"Error in confirm_meeting: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error confirming meeting")
 
 
 if __name__ == "__main__":

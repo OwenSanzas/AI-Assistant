@@ -44,7 +44,6 @@ class MeetingHandler:
 
     async def create_meeting(self, meeting_data: Dict) -> Dict:
         try:
-            # 创建会议事件
             event = {
                 'summary': meeting_data['title'],
                 'description': meeting_data['description'],
@@ -92,14 +91,19 @@ meeting_handler = MeetingHandler()
 
 async def handle_schedule_meeting(user_input: str):
     try:
+        current_date = datetime.now().strftime('%Y-%m-%d')
+
         prompt_template = ChatPromptTemplate.from_template("""
         Based on this user request: "{input}"
+        
+        today: {current_date}
 
         Extract meeting details or assume defaults as follows:
         - title: "Meeting with [contact_name]" if not specified
         - description: "Add your description" if not specified
         - duration_minutes: 45 if not specified
         - suggested_time: today + 7 days at 9:00 AM
+        - attendees_name: "<contact_name>, <contact_name2>"
 
         Return the result in JSON format:
         {{
@@ -109,33 +113,76 @@ async def handle_schedule_meeting(user_input: str):
             "duration_minutes": <duration in minutes>,
             "suggested_time": "<YYYY-MM-DDTHH:MM:SS>"
         }}
+        
+        Make sure you extract the contact name (attendee) correctly.
 
-        ONLY return the JSON object, no explanations.
+        ONLY return the JSON object, no explanations, no code block.
         """)
 
-        if os.getenv("ENV") == "prod":
-            llm = ChatAnthropic(
-                model='claude-3-5-sonnet-20240620',
-                temperature=0,
-                max_tokens=8192,
-                max_retries=2
-            )
-        else:
-            llm = privacy_manager.llm
+        prompt_template_refine = ChatPromptTemplate.from_template("""
+        Based on this user request: "{input}"
+        
+        And raw data processed as follows:
+        {result}
+        
+        current date: {current_date}
+        
+        Refine the meeting details as follows:
+        
+        1. If no title is provided, use your knowledge to set a title.
+        2. If no description is provided, set it to some project meeting content.
+        3. If no duration is provided, set it to 45 minutes.
+        4. Calculate the date carefully, ignore holidays and weekends. i.e. tomorrow = current date + 1 day.
+        5. If no time is provided, set it to 9:00 AM.
+        6. If you are still not sure, set a proper future date and time.
+        7. Make sure you extract the contact name (attendee) correctly, it should be names but not explanation or code blocks.
+        
+        if 
+        
+        
+        Make sure the time is correct calculated from the current date. If no exact time is provided, set to 9:00 AM.
+        
+        current date: {current_date}
+        
+        You are my assistant, so you should set date and time if I don't give you one. IGNORE the holidays and weekends.
+        
+        {{
+            "title": "<meeting title>",
+            "description": "<meeting description>",
+            "attendees_name": "<contact_name>",
+            "duration_minutes": <duration in minutes>,
+            "suggested_time": "<YYYY-MM-DDTHH:MM:SS>"
+        }}
+        
+        Return the result in JSON format. Make sure you json is structured correctly.
+        
+        ONLY return the JSON object, no explanations or code block.
+        
+        """)
 
-        meeting_chain = prompt_template | llm | StrOutputParser()
-        result = await meeting_chain.ainvoke({"input": user_input})
+        claude = ChatAnthropic(
+            model='claude-3-5-sonnet-20240620',
+            temperature=0,
+            max_tokens=8192,
+            max_retries=2
+        )
+
+        meeting_chain = prompt_template | claude | StrOutputParser()
+        result = await meeting_chain.ainvoke({"input": user_input, "current_date": current_date})
+
+        meeting_chain_refine = prompt_template_refine | claude | StrOutputParser()
+        result = await meeting_chain_refine.ainvoke({"input": user_input, "result": result, "current_date": current_date})
 
         parsed_result = json.loads(result)
         contact_name = parsed_result["attendees_name"]
 
-        start_time = datetime.now() + timedelta(days=7)
-        start_time = start_time.replace(hour=9, minute=0, second=0)
+        print("contact name:", contact_name)
+
+        start_time = datetime.fromisoformat(parsed_result["suggested_time"])
 
         attendee_email = await privacy_manager.get_email_address(contact_name)
 
         if attendee_email:
-            # remove "" from attendees
             attendee_email = attendee_email.replace('"', '')
             attendees = [privacy_manager.get_sender_email(), attendee_email]
         else:
@@ -147,17 +194,6 @@ async def handle_schedule_meeting(user_input: str):
         end_time = start_time + timedelta(minutes=duration_minutes)
 
         meeting_data = {
-            "title": title,
-            "description": description,
-            "start_time": start_time.isoformat(),
-            "end_time": end_time.isoformat(),
-            "attendees": attendees
-        }
-
-        # 调用 MeetingHandler 进行会议创建
-        # meeting_result = await meeting_handler.create_meeting(meeting_data)
-
-        return {
             "type": "meeting_scheduled",
             "data": {
                 "title": title,
@@ -167,6 +203,12 @@ async def handle_schedule_meeting(user_input: str):
                 "description": description,
             }
         }
+
+        print("formatted meeting data:", meeting_data)
+
+        return meeting_data
+
+
 
     except Exception as e:
         print(f"Error in handle_schedule_meeting: {str(e)}")

@@ -69,7 +69,7 @@ class PrivacyManager:
     
             Format your response as just the email address or "UNKNOWN", nothing else.
             
-            No code block should be included in the response.
+            No code block should be included in the response. ONLY the email address or "UNKNOWN".
             """)
 
             chain = (
@@ -83,7 +83,7 @@ class PrivacyManager:
                 "contacts": json.dumps(self.contacts)
             })
 
-            if len(result) > 50:
+            if len(result) > 25:
                 continue
 
             break

@@ -14,6 +14,7 @@ from email_handler import handle_send_email
 from email_sender import EmailSender
 from meeting_handler import handle_schedule_meeting, meeting_handler
 from privacy_agent import PrivacyManager
+from pydantic import BaseModel
 
 
 email_sender = EmailSender()
@@ -22,8 +23,9 @@ app = FastAPI()
 confidential_json_content = os.getenv("CONFIDENTIAL_JSON")
 
 if confidential_json_content:
+    print("Writing credentials to credentials.json")
     try:
-        with open("confidential.json", "w") as json_file:
+        with open("credentials.json", "w") as json_file:
             json.dump(json.loads(confidential_json_content), json_file)
     except json.JSONDecodeError:
         print("Error decoding CONFIDENTIAL_JSON. Please check the JSON format.")
@@ -207,6 +209,26 @@ async def confirm_meeting(meeting_data: dict):
     except Exception as e:
         print(f"Error in confirm_meeting: {str(e)}")
         raise HTTPException(status_code=500, detail="Error confirming meeting")
+
+
+class EmailRequest(BaseModel):
+    email: str
+# await axios.post(`${backendUrl}/set_sender_email`, { email: userEmail });
+@app.post("/set_sender_email")
+async def set_sender_email(request: EmailRequest):
+    if request.email != "osanzas1997@gmail.com":
+        return JSONResponse(
+            content={
+                "status": "error",
+                "message": "Please enter my creator's email address."
+            }
+        )
+    return JSONResponse(
+        content={
+            "status": "success",
+            "message": "Sender email set successfully"
+        }
+    )
 
 
 if __name__ == "__main__":

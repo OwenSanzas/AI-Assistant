@@ -1,6 +1,7 @@
 import os
 import uuid
 import uvicorn
+import json
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,8 +15,19 @@ from email_sender import EmailSender
 from meeting_handler import handle_schedule_meeting, meeting_handler
 from privacy_agent import PrivacyManager
 
+
 email_sender = EmailSender()
 app = FastAPI()
+
+confidential_json_content = os.getenv("CONFIDENTIAL_JSON")
+
+if confidential_json_content:
+    try:
+        with open("confidential.json", "w") as json_file:
+            json.dump(json.loads(confidential_json_content), json_file)
+    except json.JSONDecodeError:
+        print("Error decoding CONFIDENTIAL_JSON. Please check the JSON format.")
+
 
 app.add_middleware(
     CORSMiddleware,

@@ -1,6 +1,7 @@
 from typing import Dict, Optional
 from langchain_community.llms import Ollama
 from langchain.prompts import ChatPromptTemplate
+from langchain_anthropic import ChatAnthropic
 from langchain.schema.output_parser import StrOutputParser
 import json
 import os
@@ -8,7 +9,16 @@ import os
 
 class PrivacyManager:
     def __init__(self):
-        self.llm = Ollama(model="llama3.1:8b", temperature=0)
+        if os.getenv("ENV") == "prod":
+            self.llm = ChatAnthropic(
+                model='claude-3-5-sonnet-20240620',
+                temperature=0,
+                max_tokens=8192,
+                max_retries=2
+            )
+
+        else:
+            self.llm = Ollama(model="llama3.1:8b", temperature=0)
 
         self.contacts = self._load_contacts()
         self.personal_info = self._load_personal_info()

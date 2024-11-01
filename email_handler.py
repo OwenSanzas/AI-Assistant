@@ -1,3 +1,5 @@
+import os
+
 from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 from langchain_anthropic import ChatAnthropic
@@ -46,7 +48,26 @@ async def handle_send_email(user_input: str):
 
         The email should be professional and appropriate for the context.
         Do not include any closing phrases or signatures.
-        Just return the JSON object, nothing else.
+        Just return the JSON object, No explanation needed.
+        """)
+
+        llama = privacy_manager.llm
+
+        prompt_template_format = ChatPromptTemplate.from_template("""Extract email information from this request: "{input}"
+        
+        This is user's request of the email content. The email should be professional and appropriate for the context.
+        
+        // user_input "{user_input}"
+        
+        Return the result STRICTLY as a valid JSON object with the following format:
+        {{
+            "recipient_email": "<exact email if provided in the request, otherwise null>",
+            "recipient_name": "<recipient name if no email provided>",
+            "subject": "<appropriate subject line>",
+            "content": "<email content without any closing phrase>"
+        }}
+        
+        No explanation needed.
         """)
 
         claude = ChatAnthropic(
@@ -57,8 +78,15 @@ async def handle_send_email(user_input: str):
         )
 
         email_chain = prompt_template | claude | StrOutputParser()
+        email_format_chain = prompt_template_format | claude | StrOutputParser()
+
         result = email_chain.invoke({
             "input": user_input
+        })
+
+        result = email_format_chain.invoke({
+            "input": result,
+            "user_input": user_input
         })
 
         parsed_result = json.loads(result)

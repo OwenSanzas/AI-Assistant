@@ -47,27 +47,35 @@ class PrivacyManager:
             json.dump(info, f, indent=2)
 
     async def get_email_address(self, name: str) -> Optional[str]:
-        prompt = ChatPromptTemplate.from_template("""
-        Based on this contact name: {name}
-        And this contacts database: {contacts}
+        while True:
+            prompt = ChatPromptTemplate.from_template("""
+            Based on this contact name: {name}
+            And this contacts database: {contacts}
+    
+            If the name matches (including partial matches or nicknames) anyone in the contacts,
+            return ONLY their email address.
+            If no match is found, return "UNKNOWN".
+    
+            Format your response as just the email address or "UNKNOWN", nothing else.
+            
+            No code block should be included in the response.
+            """)
 
-        If the name matches (including partial matches or nicknames) anyone in the contacts,
-        return ONLY their email address.
-        If no match is found, return "UNKNOWN".
+            chain = (
+                    prompt
+                    | self.llm
+                    | StrOutputParser()
+            )
 
-        Format your response as just the email address or "UNKNOWN", nothing else.
-        """)
+            result = await chain.ainvoke({
+                "name": name,
+                "contacts": json.dumps(self.contacts)
+            })
 
-        chain = (
-                prompt
-                | self.llm
-                | StrOutputParser()
-        )
+            if len(result) > 50:
+                continue
 
-        result = await chain.ainvoke({
-            "name": name,
-            "contacts": json.dumps(self.contacts)
-        })
+            break
 
         print("results", result)
 

@@ -53,7 +53,7 @@ class PDFQuestionAnswering:
         Question: {question}
         """
         answer = self.chain.invoke(prompt)
-        return answer
+        return answer  # 返回答案和PDF文本
 
 
 if __name__ == "__main__":

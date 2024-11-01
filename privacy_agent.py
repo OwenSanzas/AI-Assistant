@@ -5,6 +5,7 @@ from langchain.schema.output_parser import StrOutputParser
 import json
 import os
 
+
 class PrivacyManager:
     def __init__(self):
         self.llm = Ollama(model="llama3.1:8b", temperature=0)

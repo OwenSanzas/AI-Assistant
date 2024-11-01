@@ -1,5 +1,6 @@
 .env
 
+/credentials.json
 credentials.json
 
-./uploaded_pdfs/*
+/uploaded_pdfs/*

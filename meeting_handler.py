@@ -92,7 +92,6 @@ meeting_handler = MeetingHandler()
 
 async def handle_schedule_meeting(user_input: str):
     try:
-        # 使用 Ollama 模型解析基本会议信息
         prompt_template = ChatPromptTemplate.from_template("""
         Based on this user request: "{input}"
 
@@ -114,8 +113,16 @@ async def handle_schedule_meeting(user_input: str):
         ONLY return the JSON object, no explanations.
         """)
 
-        # 本地 LLM 调用
-        llm = privacy_manager.llm
+        if os.getenv("ENV") == "prod":
+            llm = ChatAnthropic(
+                model='claude-3-5-sonnet-20240620',
+                temperature=0,
+                max_tokens=8192,
+                max_retries=2
+            )
+        else:
+            llm = privacy_manager.llm
+
         meeting_chain = prompt_template | llm | StrOutputParser()
         result = await meeting_chain.ainvoke({"input": user_input})
 
@@ -134,7 +141,6 @@ async def handle_schedule_meeting(user_input: str):
         else:
             attendees = [privacy_manager.get_sender_email(), "unknown@email.com"]
 
-        # 设定默认值
         title = parsed_result.get("title", f"Meeting with {contact_name}")
         description = parsed_result.get("description", "Add your description")
         duration_minutes = parsed_result.get("duration_minutes", 45)

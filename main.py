@@ -38,7 +38,6 @@ async def upload_pdf(files: list[UploadFile] = File(...), question: str = Form(.
     session_id = str(uuid.uuid4())
     pdf_paths = []
 
-    # 原始用户输入
     user_input = question
 
     question_base = f"\nGiven are {len(files)} texts of PDFs. Please answer the question by reading the text from the PDFs.\n"

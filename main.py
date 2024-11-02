@@ -102,6 +102,9 @@ async def process_input(request: Request):
     if session_id not in session_histories:
         session_histories[session_id] = []
 
+    # show session id and user input
+    print(f"Human: Session ID: {session_id} says {user_input}")
+
     intent = identify_intent(user_input, session_histories[session_id])
 
     if intent == "send_email":
@@ -126,7 +129,9 @@ async def process_input(request: Request):
     if "normal chat" in response:
         response = await default_chat(user_input, session_histories[session_id])
 
-    # 存储到历史记录
+    # show session id and response
+    print(f"AI: Session ID: {session_id} response {response}")
+
     session_histories[session_id].append({"sender": "User", "text": user_input})
     session_histories[session_id].append({"sender": "AI", "text": response})
 
